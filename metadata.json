@@ -1,0 +1,6 @@
+{
+  "name": "SnapCut AI",
+  "description": "Production-ready AI background removal SaaS with transparent previews, credit accounting, and developer APIs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

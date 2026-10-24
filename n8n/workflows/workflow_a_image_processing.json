@@ -1,0 +1,144 @@
+{
+  "name": "SnapCut AI - Workflow A: Image Processing Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "process-job",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node_webhook_trigger",
+      "name": "Authenticated Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [180, 240],
+      "webhookId": "snapcut-process-job-v1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.user_id }}",
+              "operation": "isNotEmpty"
+            },
+            {
+              "value1": "={{ $json.body.job_id }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "node_validate_request",
+      "name": "Validate Request Schema",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [400, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM public.reserve_processing_credit($1::uuid, $2::uuid, $3::text);",
+        "additionalFields": {
+          "queryParams": "={{ [$json.body.user_id, $json.body.job_id, $json.body.idempotency_key] }}"
+        }
+      },
+      "id": "node_reserve_credit",
+      "name": "Reserve Credit Atomically",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [620, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.remove.bg/v1.0/removebg",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBinaryData": false,
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "image_url", "value": "={{ $json.body.original_asset_url }}" },
+            { "name": "size", "value": "auto" },
+            { "name": "format", "value": "png" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "responseFormat": "file" } },
+          "timeout": 15000
+        }
+      },
+      "id": "node_call_ai_provider",
+      "name": "Invoke Remove.bg API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [840, 220]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "fileSource": "binaryData",
+        "binaryPropertyName": "data",
+        "options": {
+          "folder": "snapcut/processed",
+          "tags": "snapcut_processed,ephemeral"
+        }
+      },
+      "id": "node_upload_cloudinary",
+      "name": "Upload to Temporary Cloudinary",
+      "type": "n8n-nodes-base.cloudinary",
+      "typeVersion": 1,
+      "position": [1060, 220]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.processing_jobs SET status = 'completed', processed_asset_id = $1, processed_asset_url = $2, completed_at = now() WHERE id = $3::uuid;",
+        "additionalFields": {
+          "queryParams": "={{ [$json.public_id, $json.secure_url, $node['Authenticated Webhook Trigger'].json.body.job_id] }}"
+        }
+      },
+      "id": "node_update_job_success",
+      "name": "Persist Success & Commit Credit",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [1280, 220]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.release_processing_credit($1::uuid, $2::uuid, $3::text, $4::text);",
+        "additionalFields": {
+          "queryParams": "={{ [$node['Authenticated Webhook Trigger'].json.body.user_id, $node['Authenticated Webhook Trigger'].json.body.job_id, 'purchased_credits', 'err_release_' + Date.now()] }}"
+        }
+      },
+      "id": "node_rollback_on_failure",
+      "name": "Rollback Credit Reservation on Error",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [960, 420]
+    }
+  ],
+  "connections": {
+    "Authenticated Webhook Trigger": {
+      "main": [[{ "node": "Validate Request Schema", "type": "main", "index": 0 }]]
+    },
+    "Validate Request Schema": {
+      "main": [[{ "node": "Reserve Credit Atomically", "type": "main", "index": 0 }]]
+    },
+    "Reserve Credit Atomically": {
+      "main": [[{ "node": "Invoke Remove.bg API", "type": "main", "index": 0 }]]
+    },
+    "Invoke Remove.bg API": {
+      "main": [
+        [{ "node": "Upload to Temporary Cloudinary", "type": "main", "index": 0 }],
+        [{ "node": "Rollback Credit Reservation on Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "Upload to Temporary Cloudinary": {
+      "main": [[{ "node": "Persist Success & Commit Credit", "type": "main", "index": 0 }]]
+    }
+  }
+}

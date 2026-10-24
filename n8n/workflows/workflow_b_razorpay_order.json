@@ -1,0 +1,80 @@
+{
+  "name": "SnapCut AI - Workflow B: Razorpay Order Creation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-order",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node_order_trigger",
+      "name": "Order Creation Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [180, 240],
+      "webhookId": "snapcut-create-order-v1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT price_minor_units, currency FROM public.plans WHERE id = $1 AND is_active = true;",
+        "additionalFields": {
+          "queryParams": "={{ [$json.body.plan_id] }}"
+        }
+      },
+      "id": "node_fetch_plan_pricing",
+      "name": "Fetch Verified Plan Pricing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [400, 240]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.razorpay.com/v1/orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "amount", "value": "={{ $json.price_minor_units }}" },
+            { "name": "currency", "value": "INR" },
+            { "name": "receipt", "value": "={{ 'rcpt_' + Date.now() }}" },
+            { "name": "notes[user_id]", "value": "={{ $node['Order Creation Trigger'].json.body.user_id }}" }
+          ]
+        }
+      },
+      "id": "node_create_rzp_order",
+      "name": "Create Razorpay Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [620, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.transactions (user_id, provider, provider_order_id, amount_minor_units, currency, status, transaction_type, idempotency_key) VALUES ($1::uuid, 'razorpay', $2, $3, 'INR', 'pending', $4, $5);",
+        "additionalFields": {
+          "queryParams": "={{ [$node['Order Creation Trigger'].json.body.user_id, $json.id, $json.amount, $node['Order Creation Trigger'].json.body.type, 'idem_' + $json.id] }}"
+        }
+      },
+      "id": "node_insert_pending_tx",
+      "name": "Store Pending Transaction",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [840, 240]
+    }
+  ],
+  "connections": {
+    "Order Creation Trigger": {
+      "main": [[{ "node": "Fetch Verified Plan Pricing", "type": "main", "index": 0 }]]
+    },
+    "Fetch Verified Plan Pricing": {
+      "main": [[{ "node": "Create Razorpay Order", "type": "main", "index": 0 }]]
+    },
+    "Create Razorpay Order": {
+      "main": [[{ "node": "Store Pending Transaction", "type": "main", "index": 0 }]]
+    }
+  }
+}

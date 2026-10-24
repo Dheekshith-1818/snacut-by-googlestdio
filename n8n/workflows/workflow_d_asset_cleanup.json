@@ -1,0 +1,83 @@
+{
+  "name": "SnapCut AI - Workflow D: Ephemeral Temporary Asset Cleanup",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "node_hourly_cron",
+      "name": "Scheduled Hourly Purge Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [180, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, original_asset_id, processed_asset_id FROM public.processing_jobs WHERE expires_at < now() AND deleted_at IS NULL LIMIT 100;"
+      },
+      "id": "node_query_expired_jobs",
+      "name": "Query Expired Assets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [400, 240]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "publicId": "={{ $json.original_asset_id }}"
+      },
+      "id": "node_destroy_original_cloudinary",
+      "name": "Destroy Original Cloudinary Asset",
+      "type": "n8n-nodes-base.cloudinary",
+      "typeVersion": 1,
+      "position": [620, 200]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "publicId": "={{ $json.processed_asset_id }}"
+      },
+      "id": "node_destroy_processed_cloudinary",
+      "name": "Destroy Processed Cloudinary Asset",
+      "type": "n8n-nodes-base.cloudinary",
+      "typeVersion": 1,
+      "position": [840, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.processing_jobs SET deleted_at = now(), status = 'expired' WHERE id = $1::uuid;",
+        "additionalFields": {
+          "queryParams": "={{ [$json.id] }}"
+        }
+      },
+      "id": "node_mark_purged_in_db",
+      "name": "Mark Purged In DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [1060, 200]
+    }
+  ],
+  "connections": {
+    "Scheduled Hourly Purge Trigger": {
+      "main": [[{ "node": "Query Expired Assets", "type": "main", "index": 0 }]]
+    },
+    "Query Expired Assets": {
+      "main": [[{ "node": "Destroy Original Cloudinary Asset", "type": "main", "index": 0 }]]
+    },
+    "Destroy Original Cloudinary Asset": {
+      "main": [[{ "node": "Destroy Processed Cloudinary Asset", "type": "main", "index": 0 }]]
+    },
+    "Destroy Processed Cloudinary Asset": {
+      "main": [[{ "node": "Mark Purged In DB", "type": "main", "index": 0 }]]
+    }
+  }
+}

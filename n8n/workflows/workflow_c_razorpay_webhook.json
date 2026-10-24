@@ -1,0 +1,92 @@
+{
+  "name": "SnapCut AI - Workflow C: Razorpay Webhook Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "razorpay-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node_webhook_receiver",
+      "name": "Webhook Signature Gateway",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [180, 240],
+      "webhookId": "snapcut-razorpay-webhook-v1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.headers['x-razorpay-signature'] }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "node_check_signature_presence",
+      "name": "Check HMAC Header",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [400, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.webhook_events (provider, provider_event_id, event_type, processing_status) VALUES ('razorpay', $1, $2, 'processing') ON CONFLICT (provider_event_id) DO NOTHING RETURNING id;",
+        "additionalFields": {
+          "queryParams": "={{ [$json.body.event_id || $json.body.payload.payment.entity.id, $json.body.event] }}"
+        }
+      },
+      "id": "node_idempotent_event_guard",
+      "name": "Idempotent Event Log Guard",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [620, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.transactions SET status = 'successful', provider_payment_id = $1, updated_at = now() WHERE provider_order_id = $2 RETURNING user_id, amount_minor_units, transaction_type;",
+        "additionalFields": {
+          "queryParams": "={{ [$node['Webhook Signature Gateway'].json.body.payload.payment.entity.id, $node['Webhook Signature Gateway'].json.body.payload.payment.entity.order_id] }}"
+        }
+      },
+      "id": "node_commit_transaction",
+      "name": "Commit Transaction State",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [840, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.credit_accounts SET purchased_balance = purchased_balance + 25, updated_at = now() WHERE user_id = $1::uuid;",
+        "additionalFields": {
+          "queryParams": "={{ [$json.user_id] }}"
+        }
+      },
+      "id": "node_grant_purchased_credits",
+      "name": "Grant Purchased Credits",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [1060, 240]
+    }
+  ],
+  "connections": {
+    "Webhook Signature Gateway": {
+      "main": [[{ "node": "Check HMAC Header", "type": "main", "index": 0 }]]
+    },
+    "Check HMAC Header": {
+      "main": [[{ "node": "Idempotent Event Log Guard", "type": "main", "index": 0 }]]
+    },
+    "Idempotent Event Log Guard": {
+      "main": [[{ "node": "Commit Transaction State", "type": "main", "index": 0 }]]
+    },
+    "Commit Transaction State": {
+      "main": [[{ "node": "Grant Purchased Credits", "type": "main", "index": 0 }]]
+    }
+  }
+}

@@ -1,0 +1,1154 @@
+# SnapCut AI — Production-Ready AI Background Removal SaaS
+
+## 1. ROLE DEFINITION
+
+You are a Senior Full-Stack Engineer, SaaS Product Architect, UI/UX Designer, Database Architect, Security Engineer, and Automation Specialist.
+
+Build **SnapCut AI**, a commercial AI-powered background removal web application that enables users to upload images, automatically remove backgrounds, preview transparent results, and download processed images.
+
+The application must be designed for real-world deployment, with working authentication, image processing, database persistence, payment processing, subscription management, and administrative controls.
+
+Prioritize a functional end-to-end product over a visually impressive but nonfunctional prototype.
+
+### Mandatory development principles
+
+- Build real, working functionality rather than simulated interactions.
+- Use modular, maintainable, strictly typed code.
+- Never expose secret keys in browser code.
+- Validate all critical operations on trusted server-side infrastructure.
+- Do not claim an integration works until its credentials, configuration, and execution have been verified.
+- If an external service requires credentials, implement its integration and provide precise setup instructions without fabricating credentials or successful API responses.
+- Do not silently substitute mock processing, simulated payments, or hardcoded user data for production functionality.
+
+## 2. PRODUCT OBJECTIVE
+
+SnapCut AI solves the problem of manually removing image backgrounds using complex editing software.
+
+The product allows individuals, creators, online sellers, designers, and businesses to remove image backgrounds through a simple upload-and-download workflow.
+
+### Core value proposition
+
+Upload an image → Automatically remove the background → Preview the transparent result → Download the processed image.
+
+### Target users
+
+- E-commerce sellers and product photographers.
+- Social media creators and marketers.
+- Freelance designers and agencies.
+- Students and individual users.
+- Developers and businesses requiring programmatic background removal.
+
+### Product positioning
+
+A fast, affordable, easy-to-use background removal SaaS with a polished dark AI visual identity, transparent pricing, secure image handling, and optional API access for business customers.
+
+## 3. REQUIRED TECHNICAL ARCHITECTURE
+
+Use the following stack consistently.
+
+### Frontend
+
+- React with Vite.
+- TypeScript with strict mode enabled.
+- Tailwind CSS.
+- shadcn/ui and Radix UI primitives where appropriate.
+- React Router for routing.
+- TanStack Query for server-state management.
+- React Hook Form and Zod for form validation.
+- Lucide React for icons.
+- Axios or the native Fetch API for HTTP requests.
+
+Avoid adding unnecessary libraries.
+
+### Authentication and database
+
+Use Supabase Cloud for:
+
+- PostgreSQL database.
+- Email/password authentication.
+- Google OAuth.
+- Email verification and password recovery.
+- Row Level Security (RLS).
+- User-specific data access.
+- Database migrations and indexes.
+
+Use the Supabase client only for operations permitted by the authenticated user's database policies. Sensitive operations must execute through trusted server-side workflows.
+
+### Automation and server-side operations
+
+Use n8n Cloud for backend workflows, including:
+
+- Image processing orchestration.
+- Secure payment order creation.
+- Payment webhook handling.
+- Credit and subscription updates.
+- Scheduled cleanup tasks.
+- Administrative notifications.
+- Integration error handling.
+
+The React frontend must never call privileged third-party APIs directly.
+
+Configure authenticated n8n webhooks or an appropriate trusted server-side gateway. Validate Supabase access tokens, request ownership, payloads, and authorization before executing sensitive operations.
+
+If an operation cannot be securely implemented with the selected services, identify the missing server-side capability and implement the smallest necessary trusted component rather than weakening security.
+
+### Image storage
+
+Use Cloudinary exclusively for temporary image storage and delivery.
+
+Requirements:
+
+- Use authenticated uploads or short-lived signed upload parameters.
+- Validate MIME type, file signature, dimensions, and size.
+- Limit uploads to 10 MB and 5000 × 5000 pixels.
+- Support JPG, JPEG, PNG, and WEBP inputs.
+- Use random, non-guessable object identifiers.
+- Keep original and processed assets private where practical.
+- Issue short-lived signed delivery URLs when private delivery is required.
+- Delete original and processed assets within 24 hours.
+- Use scheduled cleanup workflows and retry failed deletions.
+- Do not treat an expiring URL as equivalent to deleting its underlying file.
+
+Never expose Cloudinary API secrets, unsigned privileged upload permissions, or permanent administrative credentials in frontend code.
+
+### AI processing
+
+Integrate a real background removal provider, preferring Remove.bg, with Clipdrop or Photoroom as an explicitly configurable alternative.
+
+Create a typed provider adapter so providers can be switched without rewriting the application.
+
+The adapter must handle:
+
+- Provider authentication.
+- Input image retrieval.
+- Processing requests.
+- Transparent PNG output.
+- Provider timeouts.
+- Rate limits.
+- Invalid input.
+- Insufficient provider credits.
+- Network failures.
+- Retryable versus non-retryable errors.
+
+Do not invent provider endpoints or response formats. Follow the selected provider's current official API documentation.
+
+### Payments
+
+Use Razorpay for Indian payments.
+
+Implement:
+
+- Server-side order creation.
+- Razorpay Checkout.
+- Payment signature verification.
+- Webhook signature verification using the raw request body.
+- Idempotent payment processing.
+- Server-side credit and subscription updates.
+- Refund and failed-payment handling.
+- Transaction history.
+
+Never trust a frontend payment-success callback as proof of payment.
+
+### Deployment
+
+- Frontend: Vercel.
+- Database and authentication: Supabase Cloud.
+- Automation: n8n Cloud.
+- Temporary image storage: Cloudinary.
+- Image processing: selected AI provider.
+- Payments: Razorpay.
+
+Provide separate development and production configurations.
+
+## 4. PRODUCT PLANS AND MONETIZATION
+
+Implement a configurable pricing system with these initial plans.
+
+### Free
+
+- Five successfully processed images per day.
+- Standard-resolution output according to provider capabilities.
+- Upload and download functionality.
+- Access to the user's recent processing history.
+- No payment details required.
+
+### Pro Monthly
+
+- ₹499 per month as the initial configurable launch price.
+- Higher or unlimited processing subject to provider quotas, abuse prevention, and fair-use rules.
+- Priority processing where technically supported.
+- Full-resolution output where supported by the provider.
+- Extended processing history.
+- Priority support.
+
+Do not promise unlimited usage without safeguards. Enforce provider capacity limits and fair-use controls.
+
+### Credit Packs
+
+Offer configurable one-time image-processing credit packs. Initialize with:
+
+- 25 images: ₹99.
+- 100 images: ₹299.
+- 500 images: ₹999.
+
+Store all prices and entitlements in database-backed configuration rather than hardcoding them throughout the frontend.
+
+Show the final amount, applicable taxes, renewal terms, and cancellation conditions clearly before checkout. Configure actual tax treatment according to the merchant's legal and accounting requirements.
+
+### Credit accounting rules
+
+- Grant credits only after verified successful payment.
+- Consume processing credits only when a job is successfully completed.
+- Reserve or lock credits during processing to prevent concurrent overspending.
+- Release reservations when processing fails.
+- Prevent negative balances.
+- Use atomic database transactions or equivalent concurrency-safe operations.
+- Prevent duplicate credit grants from repeated webhooks.
+- Record every credit adjustment in an immutable ledger.
+- Never allow users to update their own balances or subscriptions directly.
+
+For subscriptions, use verified payment events and a persistent subscription state machine. Handle renewal, expiration, cancellation, and failed recurring payments.
+
+## 5. COMPLETE FUNCTIONAL REQUIREMENTS
+
+### 5.1 Authentication
+
+Implement:
+
+- Email/password registration.
+- Login and logout.
+- Email verification.
+- Forgot-password and reset-password flows.
+- Google OAuth.
+- Protected application routes.
+- Session persistence and expiration handling.
+- User profile creation after registration.
+- Clear errors for invalid credentials, expired links, and unverified accounts.
+
+Never store passwords in application tables. Use Supabase Auth.
+
+Users must not access another user's history, images, credits, API keys, transactions, or profile.
+
+### 5.2 Public landing page
+
+Create a conversion-focused homepage containing:
+
+1. Header with logo, navigation, pricing, login, and signup.
+2. Hero section with a strong headline: “Remove Image Backgrounds in Seconds.”
+3. Short supporting description.
+4. Prominent drag-and-drop upload area.
+5. Example before-and-after comparison.
+6. Three-step explanation of the process.
+7. Feature cards.
+8. Supported format and file-size information.
+9. Pricing preview.
+10. Use cases for sellers, creators, designers, and developers.
+11. Security and temporary-file-retention information.
+12. Frequently asked questions.
+13. Footer with legal, support, and product links.
+
+The upload area must be functional for eligible users. Unauthenticated users may upload only if a secure anonymous-processing flow with enforceable limits is implemented; otherwise, direct them to register or sign in before processing.
+
+Do not claim certifications, customer counts, testimonials, or performance statistics that have not been verified.
+
+### 5.3 Image upload workspace
+
+Provide:
+
+- Drag-and-drop upload.
+- File browser selection.
+- File type and size validation.
+- Image dimension validation.
+- Selected-image thumbnail.
+- File name and size.
+- Remove or replace selection.
+- Clear upload error messages.
+- Upload and processing progress states.
+- Cancel processing where supported.
+- Retry failed jobs.
+
+Validate files both in the browser and on the trusted backend.
+
+The interface must distinguish upload progress from AI processing progress. Do not display fabricated percentage progress when the provider supplies no such information.
+
+### 5.4 Image-processing workflow
+
+Implement the following end-to-end sequence:
+
+1. User selects an image.
+2. Frontend validates the file.
+3. Authenticated request creates a processing job.
+4. Backend validates the user's session, quota, and file metadata.
+5. A processing credit is reserved atomically.
+6. Original image is uploaded to temporary Cloudinary storage.
+7. The backend invokes the configured AI provider.
+8. The provider returns the processed image.
+9. Backend validates the result and uploads it to temporary storage.
+10. Database records the job status and storage identifiers.
+11. Reserved credits are committed after successful processing.
+12. Frontend receives the completed job and displays the output.
+13. User previews and downloads the image.
+14. Temporary assets are deleted within 24 hours.
+
+Use a persistent job state machine:
+
+- `queued`
+- `uploading`
+- `processing`
+- `completed`
+- `failed`
+- `cancelled`
+- `expired`
+
+Reject invalid state transitions. Handle duplicate requests idempotently.
+
+For long-running operations, use asynchronous processing and polling or another supported completion mechanism instead of keeping an HTTP request open indefinitely.
+
+Store job metadata, not image binary data, in PostgreSQL.
+
+### 5.5 Result preview
+
+Build a dedicated result workspace with:
+
+- Original image preview.
+- Processed image preview.
+- Checkerboard transparency background.
+- Before-and-after slider or toggle.
+- Transparent PNG preview.
+- Download button.
+- Process another image button.
+- Processing duration when measured accurately.
+- File expiration notice.
+- Clear error and retry actions.
+
+Use the original image only while its temporary asset remains available.
+
+Do not build a complete photo editor, background replacement suite, or unrelated image manipulation tools.
+
+### 5.6 User dashboard
+
+Show:
+
+- Greeting and account information.
+- Remaining daily allowance.
+- Available credits.
+- Current subscription and renewal date.
+- Recent processing jobs.
+- Job status.
+- Quick upload action.
+- Upgrade plan action.
+- Recent payment activity.
+- API usage summary for eligible accounts.
+
+Use real database queries and loading, empty, error, and success states.
+
+### 5.7 Processing history
+
+Provide:
+
+- Paginated processing history.
+- Search by file name.
+- Filtering by status and date.
+- Job details.
+- Download action while the asset remains available.
+- Expiration timestamps.
+- Retry failed jobs where appropriate.
+
+Expired images must be visibly marked as expired. Do not show broken image previews as if the asset were still accessible.
+
+Retain job metadata according to the configured retention policy. Temporary file deletion must not automatically delete financial records or security audit logs that must be retained for legitimate operational or legal reasons.
+
+### 5.8 Billing and credits
+
+Create dedicated pages for:
+
+- Pricing plans.
+- Credit packs.
+- Checkout initiation.
+- Payment status.
+- Subscription details.
+- Transaction history.
+- Credit ledger.
+- Subscription cancellation.
+- Failed payment guidance.
+
+Show pending, successful, failed, refunded, and cancelled transaction states.
+
+Verify payment status from trusted server-side records. Do not permit users to grant themselves credits by modifying browser state.
+
+### 5.9 API access for business customers
+
+Provide a developer dashboard with:
+
+- API key generation.
+- Key names and creation dates.
+- Last-used timestamp.
+- Usage counters.
+- Revocation.
+- API documentation.
+- Request and response examples.
+- Rate-limit documentation.
+
+Generate high-entropy API keys on the trusted backend. Display a newly generated secret only once and store only a cryptographic hash of the key when feasible.
+
+Implement authentication, authorization, rate limiting, quotas, request validation, and usage tracking.
+
+Never expose raw API keys in logs or return them in subsequent database queries.
+
+Provide a versioned endpoint such as `/api/v1/remove-background` through a trusted backend service. If n8n alone cannot securely or reliably provide the required API gateway behavior, document and implement a minimal dedicated gateway.
+
+### 5.10 Admin dashboard
+
+Create role-protected administrative screens for:
+
+- User management.
+- Processing-job monitoring.
+- Daily and monthly usage.
+- Revenue and transaction summaries.
+- Subscription status.
+- Provider availability and error rates.
+- Workflow failures.
+- Failed cleanup jobs.
+- API usage.
+- Credit adjustments with audit records.
+
+Only authorized administrators may access these screens.
+
+Implement administrative roles through trusted database records and server-side authorization. Do not trust a role value supplied by the browser.
+
+Require a reason and an audit event for manual credit adjustments, refunds, or account restrictions.
+
+Do not expose credentials, complete payment secrets, or unnecessary personal data in logs.
+
+## 6. COMPLETE PAGE STRUCTURE
+
+### Public pages
+
+- `/` — Landing page.
+- `/features` — Product features.
+- `/pricing` — Plans and credit packs.
+- `/api-docs` — Developer documentation.
+- `/about` — Product information.
+- `/contact` — Contact form.
+- `/blog` — Blog index.
+- `/blog/:slug` — Individual article.
+- `/privacy` — Privacy policy.
+- `/terms` — Terms of service.
+- `/refund-policy` — Refund and cancellation policy.
+
+### Authentication pages
+
+- `/login`
+- `/register`
+- `/forgot-password`
+- `/reset-password`
+- `/verify-email`
+- `/auth/callback`
+
+### Authenticated user pages
+
+- `/app/dashboard`
+- `/app/remove-background`
+- `/app/result/:jobId`
+- `/app/history`
+- `/app/history/:jobId`
+- `/app/billing`
+- `/app/credits`
+- `/app/subscription`
+- `/app/settings`
+- `/app/api-keys`
+- `/app/api-usage`
+
+### Administrative pages
+
+- `/admin`
+- `/admin/users`
+- `/admin/jobs`
+- `/admin/analytics`
+- `/admin/payments`
+- `/admin/subscriptions`
+- `/admin/api-usage`
+- `/admin/workflows`
+- `/admin/audit-logs`
+
+Create reusable layouts for public pages, authenticated application pages, and administrative pages.
+
+Every route must have a defined implementation, access policy, loading state, and error state. Do not create empty pages merely to satisfy the route list.
+
+## 7. DATABASE SCHEMA
+
+Create version-controlled Supabase SQL migrations with appropriate foreign keys, indexes, constraints, timestamps, and RLS policies.
+
+### `profiles`
+
+- `id` — UUID, references `auth.users`.
+- `display_name`.
+- `avatar_url`, optional.
+- `role` — restricted role value.
+- `created_at`.
+- `updated_at`.
+
+Users must not be able to promote themselves to administrator.
+
+### `processing_jobs`
+
+- `id` — UUID.
+- `user_id`.
+- `original_filename`.
+- `input_format`.
+- `output_format`.
+- `input_size_bytes`.
+- `input_width`.
+- `input_height`.
+- `status`.
+- `provider`.
+- `provider_job_reference`, optional.
+- `original_asset_id`.
+- `processed_asset_id`.
+- `processing_duration_ms`, optional.
+- `failure_code`, optional.
+- `failure_message`, sanitized.
+- `created_at`.
+- `completed_at`, optional.
+- `expires_at`.
+- `deleted_at`, optional.
+- `idempotency_key`.
+
+Never store permanent public image URLs when signed delivery is required.
+
+### `credit_accounts`
+
+- `user_id`.
+- `purchased_balance`.
+- `updated_at`.
+
+### `credit_ledger`
+
+- `id`.
+- `user_id`.
+- `job_id`, optional.
+- `transaction_id`, optional.
+- `entry_type`.
+- `amount`.
+- `balance_after`, where appropriate.
+- `idempotency_key`.
+- `reason`.
+- `created_at`.
+
+Ledger entries must be immutable to ordinary users.
+
+### `subscriptions`
+
+- `id`.
+- `user_id`.
+- `provider_subscription_id`.
+- `plan_id`.
+- `status`.
+- `current_period_start`.
+- `current_period_end`.
+- `cancel_at_period_end`.
+- `created_at`.
+- `updated_at`.
+
+### `plans`
+
+- `id`.
+- `name`.
+- `price_minor_units`.
+- `currency`.
+- `billing_interval`.
+- `daily_limit`.
+- `monthly_limit`.
+- `features`, structured JSON.
+- `is_active`.
+- `created_at`.
+- `updated_at`.
+
+Use integer minor currency units, such as paise, for monetary calculations.
+
+### `transactions`
+
+- `id`.
+- `user_id`.
+- `provider`.
+- `provider_order_id`.
+- `provider_payment_id`.
+- `provider_event_id`, where applicable.
+- `amount_minor_units`.
+- `currency`.
+- `status`.
+- `transaction_type`.
+- `idempotency_key`.
+- `created_at`.
+- `updated_at`.
+
+### `api_keys`
+
+- `id`.
+- `user_id`.
+- `name`.
+- `key_hash`.
+- `key_prefix`.
+- `last_used_at`.
+- `revoked_at`.
+- `created_at`.
+
+### `api_usage`
+
+- `id`.
+- `api_key_id`.
+- `request_id`.
+- `status_code`.
+- `processing_duration_ms`.
+- `created_at`.
+
+### `webhook_events`
+
+- `id`.
+- `provider`.
+- `provider_event_id`.
+- `event_type`.
+- `processing_status`.
+- `processed_at`.
+- `created_at`.
+
+Enforce uniqueness on provider event identifiers where supported.
+
+### `audit_logs`
+
+- `id`.
+- `actor_user_id`, nullable for system actions.
+- `action`.
+- `target_type`.
+- `target_id`.
+- `metadata`, sanitized JSON.
+- `created_at`.
+
+### `daily_usage`
+
+- `user_id`.
+- `usage_date`.
+- `successful_jobs`.
+- `reserved_jobs`.
+- `updated_at`.
+
+Use the appropriate database date and timezone strategy to enforce daily limits consistently.
+
+Create indexes for frequently queried fields, including user IDs, job status, timestamps, expiration times, transaction identifiers, and idempotency keys.
+
+Implement trusted PostgreSQL functions or transactions for concurrent credit reservations, consumption, release, and payment entitlement updates. Revoke unnecessary direct execution permissions.
+
+## 8. API AND WEBHOOK CONTRACTS
+
+Create typed frontend service functions and documented backend contracts.
+
+### Image-processing API
+
+`POST /api/v1/jobs`
+
+Authenticated request with a validated image-upload reference and an idempotency key.
+
+Response:
+
+- Job ID.
+- Initial job status.
+- Creation timestamp.
+
+`GET /api/v1/jobs/:jobId`
+
+Return the current status and sanitized result metadata.
+
+`POST /api/v1/jobs/:jobId/retry`
+
+Retry eligible failed jobs after verifying ownership and quota.
+
+`POST /api/v1/jobs/:jobId/cancel`
+
+Cancel a queued or cancellable processing job.
+
+`POST /api/v1/jobs/:jobId/download`
+
+Return a short-lived download URL after checking job ownership, successful completion, and asset expiration.
+
+Do not accept arbitrary third-party URLs without server-side validation. Prevent SSRF by restricting outbound requests to approved provider and storage hosts.
+
+### Billing API
+
+- `POST /api/v1/billing/orders`
+- `POST /api/v1/billing/subscriptions`
+- `POST /api/v1/billing/cancel-subscription`
+- `GET /api/v1/billing/transactions`
+- `GET /api/v1/billing/entitlements`
+
+Only trusted backend operations may create orders or modify entitlements.
+
+### Webhook endpoints
+
+- `/webhooks/razorpay`
+- `/webhooks/ai-provider`, only if supported and needed.
+- Internal n8n workflow triggers protected by authentication.
+
+Validate signatures, reject malformed payloads, enforce replay protection where applicable, and process events idempotently.
+
+Return appropriate HTTP status codes. Never log full payment payloads containing unnecessary personal or financial information.
+
+If an n8n webhook cannot meet the exact endpoint, signature-validation, or raw-body requirements, implement a secure gateway rather than claiming an insecure approximation is production-ready.
+
+## 9. N8N AUTOMATION WORKFLOWS
+
+Generate importable n8n workflow JSON files with documented nodes, credentials, error branches, and retry settings.
+
+### Workflow A: Image processing
+
+1. Receive authenticated job request.
+2. Validate the request schema and access token.
+3. Confirm ownership and job state.
+4. Reserve credits through a trusted atomic database operation.
+5. Retrieve the authorized temporary image.
+6. Invoke the configured background removal provider.
+7. Validate provider status and response.
+8. Upload the result to Cloudinary.
+9. Persist job metadata and completion state.
+10. Commit the credit reservation.
+11. Return job status and result metadata.
+12. On failure, record a sanitized error, release the reservation, and schedule retries only for retryable failures.
+
+### Workflow B: Razorpay order creation
+
+1. Authenticate the user.
+2. Fetch the selected active plan or credit pack from the database.
+3. Calculate the payable amount using trusted pricing data.
+4. Create the Razorpay order.
+5. Store the pending transaction.
+6. Return the order identifier and required checkout information.
+
+### Workflow C: Razorpay webhook processing
+
+1. Receive the webhook through a signature-verifying gateway.
+2. Verify the signature against the exact raw request body.
+3. Record the event using a unique provider event identifier.
+4. Ignore already-processed duplicate events.
+5. Fetch and validate payment details when necessary.
+6. Confirm the payment matches the expected order, amount, currency, and user.
+7. Grant credits or update subscription entitlements atomically.
+8. Mark the transaction and event as processed.
+9. Record failures for safe retry and investigation.
+
+Do not grant credits for merely authorized, failed, or unverified payments.
+
+### Workflow D: Temporary asset cleanup
+
+1. Run on a schedule at least hourly.
+2. Query assets whose expiration time has passed.
+3. Delete original and processed Cloudinary assets.
+4. Retry transient deletion failures with bounded exponential backoff.
+5. Record successful deletion and remaining failures.
+6. Alert administrators when cleanup repeatedly fails.
+7. Reconcile stale database records against storage state.
+
+### Workflow E: Operational monitoring
+
+- Detect repeated AI-provider errors.
+- Detect payment webhook failures.
+- Detect expired jobs that remain incomplete.
+- Detect cleanup failures.
+- Record workflow execution identifiers.
+- Notify administrators through a configurable email integration.
+
+Use bounded retries, timeouts, and dead-letter handling where supported. Avoid infinite retry loops and duplicate credit consumption.
+
+## 10. UI/UX DESIGN SYSTEM
+
+### Visual direction
+
+Create a polished, premium dark-mode AI SaaS interface. The design should communicate speed, precision, trust, and simplicity.
+
+### Color palette
+
+- Primary blue: `#0EA5FF`
+- Secondary cyan: `#22D3EE`
+- Accent purple: `#C084FC`
+- Main background: `#020617`
+- Surface background: `#0F172A`
+- Primary text: `#E5E7EB`
+- Muted text: `#94A3B8`
+- Success: `#34D399`
+- Warning: `#FBBF24`
+- Error: `#F87171`
+- Border: `#1E293B`
+
+Use blue-to-purple gradients sparingly for primary calls to action. Maintain sufficient contrast for all text and controls.
+
+### Typography
+
+Use Inter as the primary typeface with a sans-serif fallback.
+
+### Layout
+
+- Desktop: centered content with a maximum width around 1280 px.
+- Dashboard: collapsible sidebar and clear content hierarchy.
+- Mobile: single-column layouts and accessible touch targets.
+- Upload workspace: large, prominent drop zone.
+- Results workspace: side-by-side previews on desktop and stacked previews on mobile.
+- Cards: approximately 14 px corner radius.
+- Consistent spacing based on a 4 px spacing scale.
+- Restrained glass-like surfaces, subtle shadows, and limited glow effects.
+
+### Interaction design
+
+Implement:
+
+- Clear hover, focus, active, disabled, and loading states.
+- Skeleton loaders for asynchronous data.
+- Toast notifications for completed actions.
+- Inline field validation.
+- Confirmation dialogs for destructive actions.
+- Empty states with useful next steps.
+- Responsive navigation.
+- Keyboard-accessible dialogs and menus.
+- Visible upload and processing status.
+- Accessible comparison controls.
+- Reduced-motion support.
+
+Animations must be short, purposeful, and non-blocking.
+
+Avoid excessive neon effects, unnecessary animation, decorative clutter, and oversized empty sections.
+
+## 11. NON-FUNCTIONAL REQUIREMENTS
+
+### Performance
+
+- Target Lighthouse Performance scores of at least 90 on representative production pages, subject to third-party scripts and network conditions.
+- Lazy-load noncritical images and routes.
+- Split application bundles by route.
+- Avoid unnecessary component rerenders.
+- Optimize images used on public marketing pages.
+- Use database indexes and pagination.
+- Avoid loading entire user histories into memory.
+- Set explicit timeouts for external API calls.
+- Use CDN delivery for eligible public assets.
+
+Do not promise a sub-five-second processing time under all conditions. Measure actual processing latency and display real status information.
+
+### Security
+
+Implement:
+
+- HTTPS in production.
+- Strict server-side input validation.
+- Supabase RLS policies.
+- Role-based authorization.
+- Secure session handling.
+- Secret management through deployment environment variables and service credentials.
+- Rate limiting and abuse protection.
+- CSRF protections where applicable.
+- Safe output rendering.
+- Content Security Policy.
+- Secure CORS configuration.
+- Webhook signature verification.
+- Payment idempotency.
+- Protection against IDOR, SSRF, injection, and unauthorized file access.
+- Audit logging for sensitive administrative actions.
+
+Use least-privilege credentials and separate development and production secrets.
+
+Do not put Supabase service-role keys, Razorpay secrets, Cloudinary API secrets, or AI-provider keys in client-side environment variables.
+
+### Reliability
+
+- Retry transient failures with exponential backoff and jitter.
+- Never retry permanent validation errors indefinitely.
+- Make payment processing and credit accounting idempotent.
+- Recover stale processing jobs.
+- Handle provider downtime gracefully.
+- Track failed automation executions.
+- Avoid double billing or duplicate entitlements.
+- Provide actionable errors without exposing internal implementation details.
+
+### Accessibility
+
+Target WCAG 2.1 AA:
+
+- Semantic HTML.
+- Keyboard navigation.
+- Visible focus states.
+- Accessible form labels.
+- Sufficient color contrast.
+- Screen-reader announcements for processing updates.
+- Reduced-motion support.
+- Accessible error messages and dialogs.
+
+### SEO
+
+Implement:
+
+- Unique page titles and descriptions.
+- Canonical URLs where appropriate.
+- Open Graph metadata.
+- Sitemap.
+- Robots directives.
+- Structured data only when accurate.
+- Indexable public marketing content.
+- Noindex directives for authenticated dashboards and private pages.
+
+### Privacy
+
+- Publish accurate privacy and retention policies.
+- Explain temporary storage and deletion.
+- Do not use uploaded images for model training without explicit, informed consent.
+- Do not retain image contents in application logs.
+- Minimize personal data collection.
+- Support account deletion and associated data cleanup, subject to legitimate retention obligations.
+- Retain transaction and audit records only as required by the configured business and legal policy.
+
+## 12. ERROR HANDLING AND EDGE CASES
+
+Handle these scenarios explicitly:
+
+- Unsupported image format.
+- Corrupted or mislabeled image.
+- File larger than 10 MB.
+- Dimensions exceeding the configured limit.
+- Expired authentication session.
+- Unverified email address.
+- Insufficient credits.
+- Daily quota exceeded.
+- Duplicate processing request.
+- Simultaneous requests attempting to use the same credits.
+- AI-provider timeout or rate limit.
+- Provider response without a valid transparent image.
+- Cloudinary upload or deletion failure.
+- Browser refresh during processing.
+- User navigating away from the processing page.
+- Payment cancelled by the user.
+- Payment succeeds but the browser callback fails.
+- Duplicate or delayed payment webhook.
+- Subscription renewal failure.
+- Expired download URL.
+- Expired temporary assets.
+- Database transaction failure.
+- Unauthorized administrative access.
+- Revoked API key.
+- API quota exhaustion.
+
+Use consistent, typed error responses and correlation IDs. Show users concise messages and preserve detailed sanitized diagnostics in trusted logs.
+
+## 13. PROJECT STRUCTURE AND CODE QUALITY
+
+Organize the project into clear modules.
+
+Suggested frontend structure:
+
+`src/`
+- `app/`
+- `components/ui/`
+- `components/layout/`
+- `features/auth/`
+- `features/upload/`
+- `features/jobs/`
+- `features/billing/`
+- `features/dashboard/`
+- `features/api-keys/`
+- `features/admin/`
+- `hooks/`
+- `lib/`
+- `services/`
+- `schemas/`
+- `types/`
+- `routes/`
+- `styles/`
+
+Backend and infrastructure:
+
+- `supabase/migrations/`
+- `supabase/tests/`
+- `n8n/workflows/`
+- `server/` only if a dedicated trusted gateway is required.
+- `docs/`
+- `.env.example`
+- `README.md`
+
+Requirements:
+
+- Enable TypeScript strict mode.
+- Avoid `any` unless justified and isolated.
+- Use Zod schemas for external input validation.
+- Centralize API clients and error handling.
+- Keep business logic out of presentation components.
+- Avoid duplicated payment and credit-accounting logic.
+- Use consistent naming conventions.
+- Include ESLint and formatting configuration.
+- Include unit and integration tests.
+- Do not commit `.env` files containing real credentials.
+- Do not generate unnecessarily complex abstractions.
+
+## 14. TESTING REQUIREMENTS
+
+Implement automated tests covering:
+
+### Frontend
+
+- Registration and login forms.
+- Upload validation.
+- Job status rendering.
+- Result preview.
+- Credit and quota displays.
+- Billing state rendering.
+- Protected routes.
+- API-key management.
+
+### Backend and database
+
+- Ownership and authorization.
+- RLS isolation between users.
+- Daily quota enforcement.
+- Concurrent credit reservations.
+- Credit reservation rollback.
+- Successful and failed processing jobs.
+- Duplicate idempotency keys.
+- Payment signature validation.
+- Duplicate webhook delivery.
+- Incorrect payment amounts.
+- Subscription state transitions.
+- API-key revocation.
+- Expired-asset cleanup.
+
+### End-to-end
+
+Verify these complete user journeys:
+
+1. Register → verify email → sign in.
+2. Upload → process → preview → download.
+3. Exhaust free quota → view upgrade options.
+4. Purchase credits in Razorpay test mode → verify webhook → receive credits.
+5. Simulate processing failure → confirm credit release.
+6. Refresh during processing → recover the correct job state.
+7. Attempt to access another user's job → receive an authorization error.
+8. Administrator reviews workflow failures without exposing secrets.
+9. Expired assets are deleted by the cleanup workflow.
+
+Use mocked external services only in automated tests. Production application paths must invoke real configured integrations.
+
+## 15. ENVIRONMENT CONFIGURATION
+
+Generate a complete `.env.example` containing variable names and explanatory comments, including:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `N8N_BASE_URL`
+- `N8N_WEBHOOK_SECRET`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `BACKGROUND_REMOVAL_PROVIDER`
+- `BACKGROUND_REMOVAL_API_KEY`
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+- `APP_BASE_URL`
+- `API_BASE_URL`
+- `LOG_LEVEL`
+
+Add other required variables when necessary.
+
+Never include actual credentials. Frontend variables must contain only values intended to be publicly exposed.
+
+Clearly document which variables belong in Vercel, Supabase, n8n, and any dedicated gateway.
+
+## 16. REQUIRED DELIVERABLES
+
+Generate the following artifacts:
+
+1. Complete React, Vite, and TypeScript frontend codebase.
+2. All public, authentication, user, and admin pages.
+3. Reusable design-system components.
+4. Working Supabase authentication integration.
+5. PostgreSQL schema and ordered migrations.
+6. RLS policies and database functions.
+7. Working background-removal provider adapter.
+8. Cloudinary temporary-upload and cleanup integration.
+9. Importable n8n workflow JSON files.
+10. Razorpay order and webhook integration.
+11. Credit and subscription accounting.
+12. Developer API and API-key management.
+13. Automated tests.
+14. `.env.example`.
+15. README with installation and configuration steps.
+16. Vercel deployment instructions.
+17. Supabase setup and migration instructions.
+18. n8n import and credential configuration instructions.
+19. Cloudinary configuration instructions.
+20. AI-provider configuration instructions.
+21. Razorpay test-mode and production-mode instructions.
+22. Database backup, monitoring, and recovery guidance.
+23. API documentation with example requests and responses.
+24. A deployment verification checklist.
+25. A concise architecture diagram and data-flow documentation.
+
+Include sample data only for local development and tests. Never seed fake production users, payments, revenue, or testimonials.
+
+## 17. IMPLEMENTATION ORDER
+
+Build the application in this sequence, maintaining a runnable codebase at each stage:
+
+Phase 1: Project setup, routing, design system, responsive public pages.
+
+Phase 2: Supabase configuration, authentication, profile creation, protected routes, and RLS.
+
+Phase 3: Upload interface, temporary storage, background-removal integration, job tracking, and downloads.
+
+Phase 4: Daily limits, atomic credit accounting, processing history, and dashboard.
+
+Phase 5: Razorpay payments, credit packs, subscription management, and webhook verification.
+
+Phase 6: Admin dashboard, API-key management, developer API, and operational monitoring.
+
+Phase 7: Cleanup automation, security hardening, accessibility, automated tests, and deployment documentation.
+
+At every phase, preserve existing working features. Do not replace the entire application with a new scaffold when adding functionality.
+
+## 18. STRICT RESTRICTIONS
+
+Do not:
+
+- Build a photo editor or unrelated AI tools.
+- Add social feeds, messaging, or community features.
+- Store original or processed image binaries permanently.
+- Expose privileged API keys to the browser.
+- Trust client-side payment verification.
+- Grant credits based on unverified payment events.
+- Use local storage as the authoritative source of credits, subscriptions, or permissions.
+- Implement fake authentication, mock payments, or simulated AI processing in production.
+- Create nonfunctional buttons, dead navigation links, or empty placeholder pages.
+- Use hardcoded user data for production dashboards.
+- Invent successful API responses or integration credentials.
+- Ignore failed image deletion.
+- Claim unlimited processing without enforceable capacity and abuse controls.
+- Add a custom backend server unless a genuine security or architectural requirement makes it necessary.
+- Add unnecessary libraries, animations, or infrastructure.
+- Leave security-sensitive TODOs in supposedly completed production code.
+- Claim the product is production-ready without documenting the external configuration and verification steps still required.
+
+## 19. DEFINITION OF DONE
+
+The application is complete when:
+
+- A new user can register, verify their email, and sign in.
+- An authenticated user can upload a valid image and receive a real transparent output from the configured AI provider.
+- The user can preview and download the result.
+- Job status and history persist across page refreshes.
+- Daily limits and credits are enforced by trusted server-side logic.
+- Failed jobs release reserved credits correctly.
+- Razorpay test payments can be verified and reflected in the user's entitlements without duplicate grants.
+- RLS prevents cross-user access.
+- Temporary image assets are automatically deleted within 24 hours.
+- API keys can be created, used, and revoked securely.
+- Administrative pages enforce trusted role-based access.
+- All primary pages work on mobile and desktop.
+- Automated tests cover critical business logic and security boundaries.
+- Deployment instructions enable another developer to configure and launch the system without guessing.
+- Any remaining production dependencies are explicitly documented.
+
+**Final instruction:** Build SnapCut AI as a cohesive, functional SaaS product rather than a static visual mockup. Prioritize the complete upload-to-download experience, correct security boundaries, reliable payment and credit accounting, and verified integrations. Generate the actual code and configuration files, run available tests, fix implementation errors, and report precisely which components are verified, which require external credentials, and which deployment steps remain. Do not claim successful deployment or production verification unless it has actually occurred.

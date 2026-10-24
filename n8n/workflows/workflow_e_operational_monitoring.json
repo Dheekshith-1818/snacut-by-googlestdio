@@ -1,0 +1,75 @@
+{
+  "name": "SnapCut AI - Workflow E: Operational Monitoring & Alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "node_monitor_cron",
+      "name": "Periodic Health Monitor (15m)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [180, 240]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT count(*) as failed_count FROM public.processing_jobs WHERE status = 'failed' AND created_at > now() - INTERVAL '15 minutes';"
+      },
+      "id": "node_query_failed_jobs",
+      "name": "Count Recent Failures",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.1,
+      "position": [400, 240]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.failed_count }}",
+              "operation": "larger",
+              "value2": 5
+            }
+          ]
+        }
+      },
+      "id": "node_check_failure_threshold",
+      "name": "Failure Threshold Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [620, 240]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@snapcut.ai",
+        "toEmail": "admin@snapcut.ai",
+        "subject": "CRITICAL: High AI Background Removal Error Rate",
+        "text": "={{ 'Detected ' + $json.failed_count + ' job failures in the last 15 minutes. Check upstream provider credits and status.' }}"
+      },
+      "id": "node_send_admin_email_alert",
+      "name": "Dispatch Admin Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [840, 200]
+    }
+  ],
+  "connections": {
+    "Periodic Health Monitor (15m)": {
+      "main": [[{ "node": "Count Recent Failures", "type": "main", "index": 0 }]]
+    },
+    "Count Recent Failures": {
+      "main": [[{ "node": "Failure Threshold Exceeded?", "type": "main", "index": 0 }]]
+    },
+    "Failure Threshold Exceeded?": {
+      "main": [[{ "node": "Dispatch Admin Alert", "type": "main", "index": 0 }]]
+    }
+  }
+}
